@@ -13,20 +13,13 @@
 # without messing up file permissions, since the Docker container doesn't run as
 # your actual user.
 
-# The rest is meant to mimic the output from operator-sdk's Dockerfile.
-# We just copy the binary we built inside Docker instead of from outside.
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+FROM golang:1.15 AS build
 
-ENV OPERATOR=/usr/local/bin/vitess-operator \
-    USER_UID=1001 \
-    USER_NAME=vitess-operator
-
-# install operator binary
-COPY --from=planetscale/vitess-operator-builder:builder-ubi7 /go/bin/manager ${OPERATOR}
-
-COPY build/bin /usr/local/bin
-RUN  /usr/local/bin/user_setup
-
-ENTRYPOINT ["/usr/local/bin/entrypoint"]
-
-USER ${USER_UID}
+ENV GO111MODULE=on
+ENV GOPROXY direct
+ENV GOBIN /go/bin
+ENV GOMODCACHE /root/.cache/go-build
+WORKDIR /go/src/planetscale.dev/vitess-operator
+COPY . /go/src/planetscale.dev/vitess-operator
+RUN --mount=type=cache,target=/root/.cache/go-build go env -w GOPROXY=direct && go env -w GOBIN="/go/bin" && go env -w GOMODCACHE="/root/.cache/go-build" \
+  && make generate generate-operator-yaml && make generate generate-operator-yaml && go install /go/src/planetscale.dev/vitess-operator/cmd/manager
